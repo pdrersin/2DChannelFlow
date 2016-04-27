@@ -375,11 +375,6 @@ do i = 0,nx
   end do
 end do
 
-do j = 0,ny
-  ptemp(-1,j) = ptemp(nx-1,j)
-  ptemp(nx+1,j) = ptemp(1,j)
-end do
-
 
 !Calculation of pressure gradient
 do i = 1,nx-1
@@ -391,6 +386,12 @@ do i = 1,nx-1
   gradpx(i,ny)=0
   gradpy(i,0)=0
 end do
+
+do j = 1,ny-1
+  gradpx(0,j) = (ptemp(1,j)-ptemp(0,j))/dx
+  gradpy(nx,j) = (ptemp(nx,j)-ptemp(nx-1,j))/dx
+end do
+
 
 !Updating the field
 do i = 0,nx
