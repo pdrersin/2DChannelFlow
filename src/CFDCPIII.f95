@@ -8,7 +8,7 @@ program NS2D
 implicit none
 
 
-integer :: nx,ny,fostep,adsc,ns,i,j,outpar,k,psit
+integer :: nx,ny,fostep,ns,i,j,outpar,k,psit
 real*8 :: xl,yl,regl,ft,gm,pedx,nu,ucl,dy,dx,dt,delp,rho
 real*8 :: t1,t2,cflu,cflv
 real*8,allocatable :: u(:,:),v(:,:),p(:,:),hx(:,:),hy(:,:)
@@ -25,7 +25,6 @@ read(15,*)gm		!Viscous courant
 read(15,*)xl		!Total Length in x direction
 read(15,*)yl		!Total Length in y direction
 read(15,*)ft		!Final Time
-read(15,*)adsc		!adsc; Advection scheme [0] for Upwind [1] - Central Second Order
 read(15,*)fostep	!fostep;File output every this percent of total timesteps(Choose multiples of ten)
 read(15,*)psit		!Number of iterations in Poisson Solver for Pressure
 close(15)
