@@ -1,11 +1,12 @@
-10									!pedx;	Cell Peclet Number
+40									!nx; 	Divisions in x direction
+20									!ny; 	Divisions in x direction
+1000								!ns;	Number of timesteps
 200									!regl; 	Global Reynolds Number
 10d-3								!nu; 	Kinematic Viscosity of fluid
 1000								!rho;	Density of fluid
-0.1									!gm; 	Viscous Courant Number
+0.01								!gm; 	Viscous Courant Number
 2.									!xl;	Length in x direction
 1.									!yl;	Length in y direction
-40.									!ft; 	Final time
+0.01								!ft; 	Final time
 10									!fostep;File output percentage
-1000									!psit; 	Number of iterations in Poisson Solver for Pressure
 10d-4								!tol; 	Tolerance for Pressure Poisson solver

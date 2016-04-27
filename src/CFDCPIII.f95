@@ -9,7 +9,7 @@ implicit none
 
 
 integer :: nx,ny,fostep,ns,i,j,outpar,k,psit
-real*8 :: xl,yl,regl,ft,gm,pedx,nu,ucl,dy,dx,dt,delp,rho
+real*8 :: xl,yl,regl,ft,gm,nu,ucl,dy,dx,dt,delp,rho
 real*8 :: t1,t2,cflu,cflv,tol
 real*8,allocatable :: u(:,:),v(:,:),p(:,:),hx(:,:),hy(:,:)
 
@@ -18,7 +18,9 @@ common/PoissonIter/psit
 common/contol/ tol
 
 open(15,file='CFDCP3Input.txt')
-read(15,*)pedx		!Cell Peclet number
+read(15,*)nx		!Divisions in X direction
+read(15,*)ny		!Divisions in y direction
+read(15,*)ns		!Number of timesteps
 read(15,*)regl		!Global Reynolds number
 read(15,*)nu		!Kinematic Viscosity of fluid
 read(15,*)rho		!Density of fluid
@@ -27,34 +29,18 @@ read(15,*)xl		!Total Length in x direction
 read(15,*)yl		!Total Length in y direction
 read(15,*)ft		!Final Time
 read(15,*)fostep	!fostep;File output every this percent of total timesteps(Choose multiples of ten)
-read(15,*)psit		!Number of iterations in Poisson Solver for Pressure
 read(15,*)tol		!Tolerance for Pressure Poisson Solver
 close(15)
 
 !Calculating U at centerline
-ucl = nu*regl/yl
+ucl = 2.0d0
 
 !Calculating grid discretizations
-dx = pedx*nu/ucl
-dy = dx
+dx = xl/dfloat(nx)
+dy = yl/dfloat(ny)
 
 !Calculating timestep
-dt = gm*(dx**2)/nu
-
-!Calculating number of timesteps
-ns = nint(ft/dt)
-
-!Calculating number of grid discretizations
-nx = nint(xl/dx)
-ny = nint(yl/dy)
-
-!Calculating number of timesteps
-ns = nint(ft/dt)
-
-!Calculating number of grid discretizations
-nx = nint(xl/dx)
-ny = nint(yl/dy)
-
+dt = ft/dfloat(ns)
 
 !Initial Condition & Boundary Condition Setup
 allocate(u(0:nx,0:ny))
@@ -87,14 +73,14 @@ end do
 !IC File Ouput
 open(20,file="InitialField.plt")
 write(20,*)'Title="IC Data set"'
-write(20,*)'variables ="x","y","u","v"'
+write(20,*)'variables ="x","y","u","p"'
 close(20)
 
 open(20,file="InitialField.plt",position="append")
 write(20,"(a,i8,a,i8,a)")'Zone I = ',nx+1,',J=',ny+1,',F=POINT'
   do j = 0,ny
     do i = 0,nx
-      write (20, '(1600F14.3)',advance="no")dfloat(i)/dfloat(ny),dfloat(j)/dfloat(ny),u(i,j),v(i,j)
+      write (20, '(1600F14.3)',advance="no")dfloat(i)/dfloat(ny),dfloat(j)/dfloat(ny),u(i,j),p(i,j)
       write(20,*) ''
     end do
   end do
@@ -103,7 +89,7 @@ close(20)
 !Output file setup
 open(20,file="ContourPlots.plt")
 write(20,*)'Title="Transient data set"'
-write(20,*)'variables ="x","y","u","v"'
+write(20,*)'variables ="x","y","u","p"'
 close(20)
 
 !Output file setup at y=0.5
@@ -131,17 +117,17 @@ call updateP(p,hx,hy,nx,ny,dx,dy)
 
 call updatefield(u,v,p,hx,hy,nx,ny,dx,dy,dt)
 
-outpar = ns*fostep/100
+!outpar = ns*fostep/100
 
   
 !Output to transient .plt file for Tecplot  
-if (mod(k,outpar)==0) then
+!if (mod(k,outpar)==0) then
 open(20,file="ContourPlots.plt",position="append")
 write(20,"(a,i8,a,i8,a)")'Zone I = ',nx+1,',J=',ny+1,',F=POINT'
 write(20,"(a,i8)")'StrandID=0,SolutionTime=',k
   do j = 0,ny
     do i = 0,nx
-      write (20, '(1600F14.3,1600F14.3,1600F14.3,1600F14.3)',advance="no")dfloat(i)/dfloat(ny),dfloat(j)/dfloat(ny),u(i,j),v(i,j)
+      write (20, '(1600F14.3,1600F14.3,1600F14.3,1600F14.3)',advance="no")dfloat(i)/dfloat(ny),dfloat(j)/dfloat(ny),u(i,j),p(i,j)
       write(20,*) ''
     end do
   end do
@@ -156,7 +142,7 @@ write(20,"(a,i8)")'StrandID=0,SolutionTime=',k
     end do
 close(20)
 
-end if
+!end if
 
 
  
@@ -262,9 +248,9 @@ implicit none
 
 common/PoissonIter/psit
 
-integer :: nx,ny,i,j,k,psit,q
+integer :: nx,ny,i,j,psit
 real*8::dy,dx,ta,tb
-real*8,dimension(0:nx,0:ny):: p,hx,hy,hxdx,hydy,ptemp,hytemp,psol
+real*8,dimension(0:nx,0:ny):: p,hx,hy,hxdx,hydy,ptemp,hytemp
 real*8,dimension(-1:nx+1,0:ny)::hxtemp
 
 
@@ -301,74 +287,36 @@ end do
 
 do j = 0,ny
   do i = 0,nx
-    	psol(i,j) = p(i,j)
+    	p(i,j) = ptemp(i,j)
   end do
 end do
 
 
-do k = 1,psit
-
-q = 0
-    
 do i = 1,nx-1
   do j = 1,ny-1
     if (j>1.and.j<ny-1) then
-      ta = psol(i+1,j)+psol(i-1,j)+psol(i,j+1)+psol(i,j-1)
+      ta = p(i+1,j)+p(i-1,j)+p(i,j+1)+p(i,j-1)
 	  tb = hxdx(i,j) + hydy(i,j)
       ptemp(i,j) = ta/4-tb/4*(dx**2)
 	else if (j==1) then
-      ta = psol(i+1,j)+psol(i-1,j)+psol(i,j+1)
+      ta = p(i+1,j)+p(i-1,j)+p(i,j+1)
       tb = hxdx(i,j) + hydy(i,j)
       ptemp(i,j) = ta/3-tb/3*(dx**2)
     else if (j==ny-1) then
-      ta = psol(i+1,j)+psol(i-1,j)+psol(i,j-1)
+      ta = p(i+1,j)+p(i-1,j)+p(i,j-1)
       tb = hxdx(i,j) + hydy(i,j)
       ptemp(i,j) = ta/3-tb/3*(dx**2)
 	end if
   end do
-		  
-end do
+end do		  
 
-call l1normcheck(ptemp,psol,nx,ny,q)
+
 
 do j = 0,ny
   do i = 0,nx
-    	psol(i,j) = ptemp(i,j)
+    	p(i,j) = ptemp(i,j)
   end do
 end do
-
-
-
-
-
-!if (q.ne.0) then
-    
-!    print*,k    
-!  exit
-!end if  
-
-end do
-
-do j = 0,ny
-  do i = 0,nx
-    	p(i,j) = 0
-  end do
-end do
-
-!open(20,file="PressureContourPlots.plt",position="append")
-!write(20,"(a,i8,a,i8,a)")'Zone I = ',nx+1,',J=',ny+1,',F=POINT'
-!write(20,"(a,i8)")'StrandID=0,SolutionTime=',k
-!  do j = 0,ny
-!    do i = 0,nx
-!      write (20, '(1600F14.3,1600F14.3,1600F14.3,1600F14.3)',advance="no")dfloat(i)/dfloat(ny),dfloat(j)/dfloat(ny),&
-!      &ptemp(i,j),psol(i,j)
-!      write(20,*) ''
-!    end do
-!  end dolore
-!close(20)
-
-!call exit(1)
-
 
 return
 end
@@ -414,7 +362,8 @@ implicit none
 real*8::dx,dy,dt
 integer::nx,ny,i,j
 real*8,dimension(0:nx,0:ny)::u,v,p,hx,hy
-real*8,dimension(0:nx,0:ny)::gradpx,gradpy,ptemp
+real*8,dimension(0:nx,0:ny)::gradpx,gradpy
+real*8,dimension(-1:nx+1,0:ny)::ptemp
 
 !Defining dummys for pressure
 
@@ -431,18 +380,21 @@ do i=0,nx
   end do
 end do  
 
+!Periodic BCs for gradpx
+
+do j= 1,ny-1
+  ptemp(-1,j) = ptemp(nx-1,j)
+  ptemp(nx+1,j) = ptemp(1,j)
+end do
+
 !Calculation of pressure gradient
-do i = 1,nx-1
+do i = 0,nx
   do j = 1,ny-1
-    gradpx(i,j) = (ptemp(i,j)-ptemp(i-1,j))/dx
-    gradpy(i,j) = (ptemp(i,j)-ptemp(i,j-1))/dy    
+    gradpx(i,j) = (ptemp(i+1,j)-ptemp(i-1,j))/(2d0*dx)
+    gradpy(i,j) = (ptemp(i,j+1)-ptemp(i,j-1))/(2d0*dy)
   end do
 end do
 
-do j = 1,ny-1
-  gradpx(0,j) = gradpx(1,j)
-  gradpy(nx,j) = gradpy(nx-1,j)
-end do
 
 !Updating the field
 do i = 0,nx
