@@ -10,11 +10,12 @@ implicit none
 
 integer :: nx,ny,fostep,ns,i,j,outpar,k,psit
 real*8 :: xl,yl,regl,ft,gm,pedx,nu,ucl,dy,dx,dt,delp,rho
-real*8 :: t1,t2,cflu,cflv
+real*8 :: t1,t2,cflu,cflv,tol
 real*8,allocatable :: u(:,:),v(:,:),p(:,:),hx(:,:),hy(:,:)
 
 common/Reynolds/ regl
 common/PoissonIter/psit
+common/contol/ tol
 
 open(15,file='CFDCP3Input.txt')
 read(15,*)pedx		!Cell Peclet number
@@ -27,6 +28,7 @@ read(15,*)yl		!Total Length in y direction
 read(15,*)ft		!Final Time
 read(15,*)fostep	!fostep;File output every this percent of total timesteps(Choose multiples of ten)
 read(15,*)psit		!Number of iterations in Poisson Solver for Pressure
+read(15,*)tol		!Tolerance for Pressure Poisson Solver
 close(15)
 
 !Calculating U at centerline
@@ -35,6 +37,9 @@ ucl = nu*regl/yl
 !Calculating grid discretizations
 dx = pedx*nu/ucl
 dy = dx
+
+!Calculating timestep
+dt = gm*(dx**2)/nu
 
 !Calculating number of timesteps
 ns = nint(ft/dt)
@@ -76,7 +81,7 @@ end do
 delp = xl*64/(regl)*(ucl**2)/(2d0*yl)*rho
 
 do j = 0,ny
-  p(0,j) = delp
+  p(0,j) = 2.0
 end do
 
 !IC File Ouput
@@ -95,7 +100,6 @@ write(20,"(a,i8,a,i8,a)")'Zone I = ',nx+1,',J=',ny+1,',F=POINT'
   end do
 close(20)
 
-
 !Output file setup
 open(20,file="ContourPlots.plt")
 write(20,*)'Title="Transient data set"'
@@ -108,7 +112,6 @@ write(20,*)'Title="Transient data set"'
 write(20,*)'variables ="y","u"'
 close(20)
 
-
 call cpu_time(t1)
 !Time integration - 
 do k = 1,ns
@@ -118,13 +121,13 @@ cflu = maxval(u)
 cflv = maxval(v) 
 if ((cflu*dt/(dx)+cflv*dt/(dy))>1d0) then
   print*,'Unstable - Reduce Timestep'
-  print*,dt
+!  print*,dt
 !  call exit(10)
 end if
 
 call updateH(u,v,hx,hy,nx,ny,dx,dy)
 
-call updateP(hx,hy,nx,ny,dx,dy)
+call updateP(p,hx,hy,nx,ny,dx,dy)
 
 call updatefield(u,v,p,hx,hy,nx,ny,dx,dy,dt)
 
@@ -193,8 +196,10 @@ do i = 0,nx
   end do
 end do
 
-do j = 0,ny
+do j = 1,ny-1
   utemp(-1,j) = u(nx-1,j)
+  utemp(nx+1,j) = u(1,j)
+  vtemp(nx+1,j) = v(1,j)
   vtemp(-1,j) = v(nx-1,j)
 end do
 
@@ -235,6 +240,10 @@ do i = 0,nx
     	hx(i,j) = -utemp(i,j)*(udx(i,j))-vtemp(i,j)*(udy(i,j))+1/regl*(uddx(i,j)+uddy(i,j))
     	hy(i,j) = -utemp(i,j)*(vdx(i,j))-vtemp(i,j)*(vdy(i,j))+1/regl*(vddx(i,j)+vddy(i,j))
 	end do
+
+	hx(i,ny)= 0.
+    hx(i,0)= 0.
+
 end do
 
 
@@ -248,34 +257,53 @@ end
 !Subroutine for Pressure Updation
 !--------------------------------------------------------------------------------------
 !--------------------------------------------------------------------------------------
-subroutine updateP(hx,hy,nx,ny,dx,dy)
+subroutine updateP(p,hx,hy,nx,ny,dx,dy)
 implicit none
 
 common/PoissonIter/psit
 
 integer :: nx,ny,i,j,k,psit,q
 real*8::dy,dx,ta,tb
-real*8,dimension(0:nx,0:ny):: p,hx,hy,hxdx,hydy
-real*8,dimension(-1:nx+1,0:ny)::hxtemp,hytemp,ptemp
+real*8,dimension(0:nx,0:ny):: p,hx,hy,hxdx,hydy,ptemp,hytemp,psol
+real*8,dimension(-1:nx+1,0:ny)::hxtemp
 
 
 
 !Calculating divergence of H terms
+
 
 do i = 0,nx
   do j = 0,ny
     hxtemp(i,j) = hx(i,j)
     hytemp(i,j) = hy(i,j)
     ptemp(i,j)	= p(i,j)
+    hxdx(i,j)=0.0
+    hydy(i,j)=0.0    
   end do
 end do
+
+!Adding Dummy terms in x direction for hxdx
+
+do j = 0,ny
+  hxtemp(-1,j) = hx(nx-1,j)
+  hxtemp(nx+1,j) = hx(1,j)
+end do
+
+
     
 do i = 0,nx
   do j = 1,ny-1
     hxdx(i,j) = (hxtemp(i+1,j)-hxtemp(i-1,j))/(2d0*dx)
-    hydy(i,j) = (hytemp(i,j+1)-hxtemp(i,j-1))/(2d0*dy)
+    hydy(i,j) = (hytemp(i,j+1)-hytemp(i,j-1))/(2d0*dy)
   end do
 end do    
+
+
+do j = 0,ny
+  do i = 0,nx
+    	psol(i,j) = p(i,j)
+  end do
+end do
 
 
 do k = 1,psit
@@ -285,39 +313,61 @@ q = 0
 do i = 1,nx-1
   do j = 1,ny-1
     if (j>1.and.j<ny-1) then
-      ta = p(i+1,j)+ptemp(i-1,j)+p(i,j+1)+ptemp(i,j-1)
+      ta = psol(i+1,j)+psol(i-1,j)+psol(i,j+1)+psol(i,j-1)
 	  tb = hxdx(i,j) + hydy(i,j)
       ptemp(i,j) = ta/4-tb/4*(dx**2)
 	else if (j==1) then
-      ta = p(i+1,j)+ptemp(i-1,j)+p(i,j+1)
+      ta = psol(i+1,j)+psol(i-1,j)+psol(i,j+1)
       tb = hxdx(i,j) + hydy(i,j)
       ptemp(i,j) = ta/3-tb/3*(dx**2)
     else if (j==ny-1) then
-      ta = p(i+1,j)+ptemp(i-1,j)+p(i,j-1)
+      ta = psol(i+1,j)+psol(i-1,j)+psol(i,j-1)
       tb = hxdx(i,j) + hydy(i,j)
       ptemp(i,j) = ta/3-tb/3*(dx**2)
 	end if
   end do
-
-	  ptemp(i,ny) = ptemp(i,ny-1)
-      ptemp(i,0) = ptemp(i,1)
 		  
 end do
 
-call l1normcheck(ptemp,p,nx,ny,q)
+call l1normcheck(ptemp,psol,nx,ny,q)
 
-if (q.ne.0) then
-    do j = 0,ny
-  	do i = 0,nx
-    	p(i,j) = ptemp(i,j)
-    end do
-	end do
-    print*,k    
-  exit
-end if  
+do j = 0,ny
+  do i = 0,nx
+    	psol(i,j) = ptemp(i,j)
+  end do
+end do
+
+
+
+
+
+!if (q.ne.0) then
+    
+!    print*,k    
+!  exit
+!end if  
 
 end do
 
+do j = 0,ny
+  do i = 0,nx
+    	p(i,j) = 0
+  end do
+end do
+
+!open(20,file="PressureContourPlots.plt",position="append")
+!write(20,"(a,i8,a,i8,a)")'Zone I = ',nx+1,',J=',ny+1,',F=POINT'
+!write(20,"(a,i8)")'StrandID=0,SolutionTime=',k
+!  do j = 0,ny
+!    do i = 0,nx
+!      write (20, '(1600F14.3,1600F14.3,1600F14.3,1600F14.3)',advance="no")dfloat(i)/dfloat(ny),dfloat(j)/dfloat(ny),&
+!      &ptemp(i,j),psol(i,j)
+!      write(20,*) ''
+!    end do
+!  end dolore
+!close(20)
+
+!call exit(1)
 
 
 return
@@ -334,7 +384,7 @@ implicit none
 common/contol/ tol
 
 integer::q,nx,ny,i,j
-real*8,dimension(-1:nx+1,0:ny)::utemp,u
+real*8,dimension(0:nx,0:ny)::utemp,u
 real*8::sumu,tol
 
 sumu = 0.
@@ -364,8 +414,7 @@ implicit none
 real*8::dx,dy,dt
 integer::nx,ny,i,j
 real*8,dimension(0:nx,0:ny)::u,v,p,hx,hy
-real*8,dimension(0:nx,0:ny)::gradpx,gradpy
-real*8,dimension(-1:nx+1,0:ny)::ptemp
+real*8,dimension(0:nx,0:ny)::gradpx,gradpy,ptemp
 
 !Defining dummys for pressure
 
@@ -375,6 +424,12 @@ do i = 0,nx
   end do
 end do
 
+do i=0,nx
+  do j=0,ny
+    gradpx(i,j)=0.0
+    gradpy(i,j)=0.0
+  end do
+end do  
 
 !Calculation of pressure gradient
 do i = 1,nx-1
@@ -382,16 +437,12 @@ do i = 1,nx-1
     gradpx(i,j) = (ptemp(i,j)-ptemp(i-1,j))/dx
     gradpy(i,j) = (ptemp(i,j)-ptemp(i,j-1))/dy    
   end do
-
-  gradpx(i,ny)=0
-  gradpy(i,0)=0
 end do
 
 do j = 1,ny-1
-  gradpx(0,j) = (ptemp(1,j)-ptemp(0,j))/dx
-  gradpy(nx,j) = (ptemp(nx,j)-ptemp(nx-1,j))/dx
+  gradpx(0,j) = gradpx(1,j)
+  gradpy(nx,j) = gradpy(nx-1,j)
 end do
-
 
 !Updating the field
 do i = 0,nx
