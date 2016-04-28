@@ -148,7 +148,7 @@ open(20,file="LinePlots.plt",position="append")
 write(20,"(a,i8,a)")'Zone I = ',nx+1,',F=POINT'
 write(20,"(a,i8)")'StrandID=0,SolutionTime=',k
     do i = 0,nx
-      write (20, '(1600F14.3,1600F14.3)',advance="no")dfloat(i)/dfloat(ny),p(i,ny)
+      write (20, '(1600F14.3,1600F14.3)',advance="no")dfloat(i)/dfloat(ny),p(i,ny/2)
       write(20,*) ''
     end do
 close(20)
