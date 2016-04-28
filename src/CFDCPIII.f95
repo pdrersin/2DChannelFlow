@@ -16,6 +16,8 @@ real*8,allocatable :: u(:,:),v(:,:),p(:,:),hx(:,:),hy(:,:)
 common/Reynolds/ regl
 common/PoissonIter/psit
 common/contol/ tol
+common/tint/k,outpar
+common/density/rho
 
 open(15,file='CFDCP3Input.txt')
 read(15,*)nx		!Divisions in X direction
@@ -70,6 +72,8 @@ do j = 0,ny
   p(0,j) = 2.0
 end do
 
+outpar = ns*fostep/100
+
 !IC File Ouput
 open(20,file="InitialField.plt")
 write(20,*)'Title="IC Data set"'
@@ -92,10 +96,16 @@ write(20,*)'Title="Transient data set"'
 write(20,*)'variables ="x","y","u","p"'
 close(20)
 
+open(20,file="GradPContourPlots.plt")
+write(20,*)'Title="Transient data set"'
+write(20,*)'variables ="x","y","gradpx","gradpy"'
+close(20)
+
+
 !Output file setup at y=0.5
 open(20,file="LinePlots.plt")
 write(20,*)'Title="Transient data set"'
-write(20,*)'variables ="y","u"'
+write(20,*)'variables ="x","p"'
 close(20)
 
 call cpu_time(t1)
@@ -117,11 +127,11 @@ call updateP(p,hx,hy,nx,ny,dx,dy)
 
 call updatefield(u,v,p,hx,hy,nx,ny,dx,dy,dt)
 
-!outpar = ns*fostep/100
+
 
   
 !Output to transient .plt file for Tecplot  
-!if (mod(k,outpar)==0) then
+if (mod(k,outpar)==0) then
 open(20,file="ContourPlots.plt",position="append")
 write(20,"(a,i8,a,i8,a)")'Zone I = ',nx+1,',J=',ny+1,',F=POINT'
 write(20,"(a,i8)")'StrandID=0,SolutionTime=',k
@@ -134,15 +144,15 @@ write(20,"(a,i8)")'StrandID=0,SolutionTime=',k
 close(20)
 
 open(20,file="LinePlots.plt",position="append")
-write(20,"(a,i8,a)")'Zone I = ',ny+1,',F=POINT'
+write(20,"(a,i8,a)")'Zone I = ',nx+1,',F=POINT'
 write(20,"(a,i8)")'StrandID=0,SolutionTime=',k
-    do j = 0,ny
-      write (20, '(1600F14.3,1600F14.3)',advance="no")dfloat(j)/dfloat(ny),u(nx/2,j)
+    do i = 0,nx
+      write (20, '(1600F14.3,1600F14.3)',advance="no")dfloat(i)/dfloat(ny),p(i,ny)
       write(20,*) ''
     end do
 close(20)
 
-!end if
+end if
 
 
  
@@ -248,12 +258,12 @@ implicit none
 
 common/PoissonIter/psit
 
-integer :: nx,ny,i,j,psit
+integer :: nx,ny,i,j,psit,k
 real*8::dy,dx,ta,tb
 real*8,dimension(0:nx,0:ny):: p,hx,hy,hxdx,hydy,ptemp,hytemp
-real*8,dimension(-1:nx+1,0:ny)::hxtemp
+real*8,dimension(-1:nx+1,0:ny)::hxtemp,pd
 
-
+psit = 1000
 
 !Calculating divergence of H terms
 
@@ -263,6 +273,7 @@ do i = 0,nx
     hxtemp(i,j) = hx(i,j)
     hytemp(i,j) = hy(i,j)
     ptemp(i,j)	= p(i,j)
+    pd(i,j)		= p(i,j)
     hxdx(i,j)=0.0
     hydy(i,j)=0.0    
   end do
@@ -273,6 +284,8 @@ end do
 do j = 0,ny
   hxtemp(-1,j) = hx(nx-1,j)
   hxtemp(nx+1,j) = hx(1,j)
+  pd(-1,j) = p(nx-1,j)
+  pd(nx+1,j)=p(1,j)
 end do
 
 
@@ -284,6 +297,29 @@ do i = 0,nx
   end do
 end do    
 
+do k = 1,psit
+
+do i = 1,nx-1
+  do j = 1,ny-1
+    if (j>1.and.j<ny-1) then
+      ta = pd(i+1,j)+pd(i-1,j)+pd(i,j+1)+p(i,j-1)
+	  tb = hxdx(i,j) + hydy(i,j)
+      ptemp(i,j) = ta/4-tb/4*(dx**2)
+	else if (j==1) then
+      ta = pd(i+1,j)+pd(i-1,j)+pd(i,j+1)
+      tb = hxdx(i,j) + hydy(i,j)
+      ptemp(i,j) = ta/3-tb/3*(dx**2)
+    else if (j==ny-1) then
+      ta = pd(i+1,j)+pd(i-1,j)+pd(i,j-1)
+      tb = hxdx(i,j) + hydy(i,j)
+      ptemp(i,j) = ta/3-tb/3*(dx**2)
+	end if
+  end do
+
+	ptemp(i,ny) = ptemp(i,ny-1)
+	ptemp(i,0) = ptemp(i,1)  
+end do		  
+
 
 do j = 0,ny
   do i = 0,nx
@@ -291,31 +327,6 @@ do j = 0,ny
   end do
 end do
 
-
-do i = 1,nx-1
-  do j = 1,ny-1
-    if (j>1.and.j<ny-1) then
-      ta = p(i+1,j)+p(i-1,j)+p(i,j+1)+p(i,j-1)
-	  tb = hxdx(i,j) + hydy(i,j)
-      ptemp(i,j) = ta/4-tb/4*(dx**2)
-	else if (j==1) then
-      ta = p(i+1,j)+p(i-1,j)+p(i,j+1)
-      tb = hxdx(i,j) + hydy(i,j)
-      ptemp(i,j) = ta/3-tb/3*(dx**2)
-    else if (j==ny-1) then
-      ta = p(i+1,j)+p(i-1,j)+p(i,j-1)
-      tb = hxdx(i,j) + hydy(i,j)
-      ptemp(i,j) = ta/3-tb/3*(dx**2)
-	end if
-  end do
-end do		  
-
-
-
-do j = 0,ny
-  do i = 0,nx
-    	p(i,j) = ptemp(i,j)
-  end do
 end do
 
 return
@@ -359,8 +370,11 @@ end
 subroutine updatefield(u,v,p,hx,hy,nx,ny,dx,dy,dt)
 implicit none
 
-real*8::dx,dy,dt
-integer::nx,ny,i,j
+common/tint/k,outpar
+common/density/rho
+
+real*8::dx,dy,dt,rho
+integer::nx,ny,i,j,k,outpar
 real*8,dimension(0:nx,0:ny)::u,v,p,hx,hy
 real*8,dimension(0:nx,0:ny)::gradpx,gradpy
 real*8,dimension(-1:nx+1,0:ny)::ptemp
@@ -382,25 +396,44 @@ end do
 
 !Periodic BCs for gradpx
 
-do j= 1,ny-1
+do j= 0,ny
   ptemp(-1,j) = ptemp(nx-1,j)
   ptemp(nx+1,j) = ptemp(1,j)
 end do
 
 !Calculation of pressure gradient
 do i = 0,nx
-  do j = 1,ny-1
-    gradpx(i,j) = (ptemp(i+1,j)-ptemp(i-1,j))/(2d0*dx)
-    gradpy(i,j) = (ptemp(i,j+1)-ptemp(i,j-1))/(2d0*dy)
+  do j = 0,ny
+    gradpx(i,j) = (ptemp(i+1,j)-ptemp(i-1,j))/(2.*dx)
   end do
 end do
 
+do i = 0,nx
+  	do j = 1,ny-1
+    	gradpy(i,j) = (ptemp(i,j+1)-ptemp(i,j-1))/(2d0*dy)
+	end do
+end do
+
+  
+if (mod(k,outpar)==0) then
+open(20,file="GradPContourPlots.plt",position="append")
+write(20,"(a,i8,a,i8,a)")'Zone I = ',nx+1,',J=',ny+1,',F=POINT'
+write(20,"(a,i8)")'StrandID=0,SolutionTime=',k
+  do j = 0,ny
+    do i = 0,nx
+      write (20, '(1600F14.3,1600F14.3,1600F14.3,1600F14.3)',advance="no")dfloat(i)/dfloat(ny),dfloat(j)/dfloat(ny)&
+      &,gradpx(i,j),p(i,j)
+      write(20,*) ''
+    end do
+  end do
+close(20)
+end if
 
 !Updating the field
 do i = 0,nx
   do j = 1,ny-1
-	u(i,j) = u(i,j) + dt*(hx(i,j)-gradpx(i,j))
-  	v(i,j) = v(i,j) + dt*(hy(i,j)-gradpy(i,j))
+	u(i,j) = u(i,j) + dt*(hx(i,j)-1/rho*gradpx(i,j))
+  	v(i,j) = v(i,j) + dt*(hy(i,j)-1/rho*gradpy(i,j))
   end do
 end do
 
