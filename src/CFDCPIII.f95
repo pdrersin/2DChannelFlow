@@ -77,14 +77,14 @@ outpar = ns*fostep/100
 !IC File Ouput
 open(20,file="InitialField.plt")
 write(20,*)'Title="IC Data set"'
-write(20,*)'variables ="x","y","u","p"'
+write(20,*)'variables ="x","y","u","v","p"'
 close(20)
 
 open(20,file="InitialField.plt",position="append")
 write(20,"(a,i8,a,i8,a)")'Zone I = ',nx+1,',J=',ny+1,',F=POINT'
   do j = 0,ny
     do i = 0,nx
-      write (20, '(1600F14.3)',advance="no")dfloat(i)/dfloat(ny),dfloat(j)/dfloat(ny),u(i,j),p(i,j)
+      write (20, '(1600F14.3)',advance="no")dfloat(i)/dfloat(ny),dfloat(j)/dfloat(ny),u(i,j),v(i,j),p(i,j)
       write(20,*) ''
     end do
   end do
@@ -93,7 +93,7 @@ close(20)
 !Output file setup
 open(20,file="ContourPlots.plt")
 write(20,*)'Title="Transient data set"'
-write(20,*)'variables ="x","y","u","p"'
+write(20,*)'variables ="x","y","u","v","p"'
 close(20)
 
 open(20,file="GradPContourPlots.plt")
@@ -137,7 +137,8 @@ write(20,"(a,i8,a,i8,a)")'Zone I = ',nx+1,',J=',ny+1,',F=POINT'
 write(20,"(a,i8)")'StrandID=0,SolutionTime=',k
   do j = 0,ny
     do i = 0,nx
-      write (20, '(1600F14.3,1600F14.3,1600F14.3,1600F14.3)',advance="no")dfloat(i)/dfloat(ny),dfloat(j)/dfloat(ny),u(i,j),p(i,j)
+      write (20, '(1600F14.3,1600F14.3,1600F14.3,1600F14.3)',advance="no")dfloat(i)/dfloat(ny),&
+      &dfloat(j)/dfloat(ny),u(i,j),v(i,j),p(i,j)
       write(20,*) ''
     end do
   end do
@@ -258,9 +259,9 @@ implicit none
 
 common/PoissonIter/psit
 
-integer :: nx,ny,i,j,psit,k
+integer :: nx,ny,i,j,psit,k,q
 real*8::dy,dx,ta,tb
-real*8,dimension(0:nx,0:ny):: p,hx,hy,hxdx,hydy,ptemp,hytemp
+real*8,dimension(0:nx,0:ny):: p,hx,hy,hxdx,hydy,ptemp1,hytemp,ptemp2
 real*8,dimension(-1:nx+1,0:ny)::hxtemp,pd
 
 psit = 500
@@ -272,7 +273,8 @@ do i = 0,nx
   do j = 0,ny
     hxtemp(i,j) = hx(i,j)
     hytemp(i,j) = hy(i,j)
-    ptemp(i,j)	= p(i,j)
+    ptemp1(i,j)	= p(i,j)
+    ptemp2(i,j)	= p(i,j)    
     pd(i,j)		= p(i,j)
     hxdx(i,j)=0.0
     hydy(i,j)=0.0    
@@ -297,6 +299,8 @@ do i = 0,nx
   end do
 end do    
 
+q = 0
+  
 do k = 1,psit
 
 do i = 1,nx-1
@@ -304,28 +308,47 @@ do i = 1,nx-1
     if (j>1.and.j<ny-1) then
       ta = pd(i+1,j)+pd(i-1,j)+pd(i,j+1)+p(i,j-1)
 	  tb = hxdx(i,j) + hydy(i,j)
-      ptemp(i,j) = ta/4-tb/4*(dx**2)
+      ptemp1(i,j) = ta/4-tb/4*(dx**2)
 	else if (j==1) then
       ta = pd(i+1,j)+pd(i-1,j)+pd(i,j+1)
       tb = hxdx(i,j) + hydy(i,j)
-      ptemp(i,j) = ta/3-tb/3*(dx**2)
+      ptemp1(i,j) = ta/3-tb/3*(dx**2)
     else if (j==ny-1) then
       ta = pd(i+1,j)+pd(i-1,j)+pd(i,j-1)
       tb = hxdx(i,j) + hydy(i,j)
-      ptemp(i,j) = ta/3-tb/3*(dx**2)
+      ptemp1(i,j) = ta/3-tb/3*(dx**2)
 	end if
   end do
 
-	ptemp(i,ny) = ptemp(i,ny-1)
-	ptemp(i,0) = ptemp(i,1)  
+	ptemp1(i,ny) = ptemp1(i,ny-1)
+	ptemp1(i,0) = ptemp1(i,1)  
 end do		  
 
+call l1normcheck(ptemp1,ptemp2,nx,ny,q)
+
+if (q.ne.1) then
 
 do j = 0,ny
   do i = 0,nx
-    	p(i,j) = ptemp(i,j)
+    	p(i,j) = ptemp1(i,j)
   end do
 end do
+
+print*,k
+
+exit
+
+end if
+
+do j = 0,ny
+  do i = 0,nx
+    	ptemp2(i,j) = ptemp1(i,j)
+  end do
+end do
+
+
+
+
 
 end do
 
@@ -427,7 +450,7 @@ write(20,"(a,i8)")'StrandID=0,SolutionTime=',k
   do j = 0,ny
     do i = 0,nx
       write (20, '(1600F14.3,1600F14.3,1600F14.3,1600F14.3)',advance="no")dfloat(i)/dfloat(ny),dfloat(j)/dfloat(ny)&
-      &,gradpx(i,j),p(i,j)
+      &,gradpx(i,j),gradpy(i,j)
       write(20,*) ''
     end do
   end do
