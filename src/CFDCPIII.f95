@@ -69,7 +69,7 @@ end do
 delp = xl*64/(regl)*(ucl**2)/(2d0*yl)*rho
 
 do j = 0,ny
-  p(0,j) = 2.0
+  p(0,j) = 5d0
 end do
 
 outpar = ns*fostep/100
@@ -106,6 +106,12 @@ close(20)
 open(20,file="LinePlots.plt")
 write(20,*)'Title="Transient data set"'
 write(20,*)'variables ="x","p"'
+close(20)
+
+!Output file setup at y=0.5
+open(20,file="UprofileLinePlots.plt")
+write(20,*)'Title="Transient data set"'
+write(20,*)'variables ="u","y"'
 close(20)
 
 call cpu_time(t1)
@@ -149,6 +155,15 @@ write(20,"(a,i8,a)")'Zone I = ',nx+1,',F=POINT'
 write(20,"(a,i8)")'StrandID=0,SolutionTime=',k
     do i = 0,nx
       write (20, '(1600F14.3,1600F14.3)',advance="no")dfloat(i)/dfloat(ny),p(i,ny/2)
+      write(20,*) ''
+    end do
+close(20)
+
+open(20,file="UprofileLinePlots.plt",position="append")
+write(20,"(a,i8,a)")'Zone I = ',ny+1,',F=POINT'
+write(20,"(a,i8)")'StrandID=0,SolutionTime=',k
+    do j = 0,ny
+      write (20, '(1600F14.3,1600F14.3)',advance="no")u(nx/2,j),dfloat(j)/dfloat(ny)
       write(20,*) ''
     end do
 close(20)
