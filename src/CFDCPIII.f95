@@ -263,7 +263,7 @@ real*8::dy,dx,ta,tb
 real*8,dimension(0:nx,0:ny):: p,hx,hy,hxdx,hydy,ptemp,hytemp
 real*8,dimension(-1:nx+1,0:ny)::hxtemp,pd
 
-psit = 1000
+psit = 500
 
 !Calculating divergence of H terms
 
@@ -402,7 +402,7 @@ do j= 0,ny
 end do
 
 !Calculation of pressure gradient
-do i = 0,nx
+do i = 1,nx-1
   do j = 0,ny
     gradpx(i,j) = (ptemp(i+1,j)-ptemp(i-1,j))/(2.*dx)
   end do
@@ -413,6 +413,11 @@ do i = 0,nx
     	gradpy(i,j) = (ptemp(i,j+1)-ptemp(i,j-1))/(2d0*dy)
 	end do
 end do
+
+  	do j = 0,ny
+    	gradpx(0,j) = gradpx(1,j)
+    	gradpx(nx,j) = gradpx(nx-1,j)        
+	end do
 
   
 if (mod(k,outpar)==0) then

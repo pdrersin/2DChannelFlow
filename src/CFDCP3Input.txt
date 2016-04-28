@@ -1,12 +1,12 @@
-10									!nx; 	Divisions in x direction
-5									!ny; 	Divisions in x direction
-3000								!ns;	Number of timesteps
+100									!nx; 	Divisions in x direction
+50									!ny; 	Divisions in x direction
+8000								!ns;	Number of timesteps
 200									!regl; 	Global Reynolds Number
 10d-3								!nu; 	Kinematic Viscosity of fluid
 1000								!rho;	Density of fluid
 0.01								!gm; 	Viscous Courant Number
 2.									!xl;	Length in x direction
 1.									!yl;	Length in y direction
-1									!ft; 	Final time
+15									!ft; 	Final time
 10									!fostep;File output percentage
 10d-4								!tol; 	Tolerance for Pressure Poisson solver
