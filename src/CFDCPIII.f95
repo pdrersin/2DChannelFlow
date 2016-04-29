@@ -35,7 +35,7 @@ read(15,*)tol		!Tolerance for Pressure Poisson Solver
 close(15)
 
 !Calculating U at centerline
-ucl = 2.0d0
+ucl = 200d0*nu/yl
 
 !Calculating grid discretizations
 dx = xl/dfloat(nx)
@@ -69,7 +69,7 @@ end do
 delp = xl*64/(regl)*(ucl**2)/(2d0*yl)*rho
 
 do j = 0,ny
-  p(0,j) = 5d0
+  p(0,j) = delp
 end do
 
 outpar = ns*fostep/100
@@ -475,8 +475,8 @@ end if
 !Updating the field
 do i = 0,nx
   do j = 1,ny-1
-	u(i,j) = u(i,j) + dt*(hx(i,j)-1/rho*gradpx(i,j))
-  	v(i,j) = v(i,j) + dt*(hy(i,j)-1/rho*gradpy(i,j))
+	u(i,j) = u(i,j) + dt*(hx(i,j)-1*gradpx(i,j))
+  	v(i,j) = v(i,j) + dt*(hy(i,j)-1*gradpy(i,j))
   end do
 end do
 
