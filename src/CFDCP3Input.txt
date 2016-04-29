@@ -10,3 +10,4 @@
 200									!ft; 	Final time
 5									!fostep;File output percentage
 10d-4								!tol; 	Tolerance for Pressure Poisson solver
+1									!min; [0] - No momentum interpolation [1] - With momentum interpolation

@@ -8,7 +8,7 @@ program NS2D
 implicit none
 
 
-integer :: nx,ny,fostep,ns,i,j,outpar,k,psit
+integer :: nx,ny,fostep,ns,i,j,outpar,k,psit,min
 real*8 :: xl,yl,regl,ft,gm,nu,ucl,dy,dx,dt,delp,rho
 real*8 :: t1,t2,cflu,cflv,tol
 real*8,allocatable :: u(:,:),v(:,:),p(:,:),hx(:,:),hy(:,:)
@@ -32,6 +32,7 @@ read(15,*)yl		!Total Length in y direction
 read(15,*)ft		!Final Time
 read(15,*)fostep	!fostep;File output every this percent of total timesteps(Choose multiples of ten)
 read(15,*)tol		!Tolerance for Pressure Poisson Solver
+read(15,*)min		!Momentum interpolation?
 close(15)
 
 !Calculating U at centerline
@@ -129,7 +130,15 @@ end if
 
 call updateH(u,v,hx,hy,nx,ny,dx,dy)
 
+if (min==0) then
+
 call updateP(p,hx,hy,nx,ny,dx,dy)
+
+else
+
+call updatePmin(u,v,p,hx,hy,nx,ny,dx,dy,dt)  
+
+end if
 
 call updatefield(u,v,p,hx,hy,nx,ny,dx,dy,dt)
 
@@ -479,6 +488,40 @@ do i = 0,nx
   	v(i,j) = v(i,j) + dt*(hy(i,j)-1*gradpy(i,j))
   end do
 end do
+
+
+
+return
+end
+
+
+
+!--------------------------------------------------------------------------------------
+!--------------------------------------------------------------------------------------
+!Subroutine for Pressure Updation using momentum interpolation
+!--------------------------------------------------------------------------------------
+!--------------------------------------------------------------------------------------
+subroutine updatePmin(u,v,p,hx,hy,nx,ny,dx,dy,dt)
+implicit none
+
+integer::nx,ny
+real*8::dx,dy,dt
+real*8,dimension(0:nx,0:ny)::u,v,p,hx,hy
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
