@@ -8,8 +8,8 @@ program NS2D
 implicit none
 
 
-integer :: nx,ny,fostep,ns,i,j,outpar,k,psit
-real*8 :: xl,yl,regl,ft,gm,nu,ucl,dy,dx,dt,delp,rho
+integer :: nx,ny,fostep,ns,i,j,outpar,k,psit,mom
+real*8 :: xl,yl,regl,ft,gm,nu,dy,dx,dt,rho
 real*8 :: t1,t2,cflu,cflv,tol
 real*8,allocatable :: u(:,:),v(:,:),p(:,:),hx(:,:),hy(:,:)
 
@@ -33,10 +33,11 @@ read(15,*)ft		!Final Time
 read(15,*)fostep	!fostep;File output every this percent of total timesteps(Choose multiples of ten)
 read(15,*)tol		!Tolerance for Pressure Poisson Solver
 read(15,*)psit		!Poisson Iterations
+read(15,*)mom		!Momentum Interpolation
 close(15)
 
-!Calculating U at centerline - Centimeters
-ucl = regl*nu/yl
+
+
 
 !Calculating grid discretizations
 dx = xl/dfloat(nx)
@@ -123,7 +124,15 @@ end if
 
 call updateH(u,v,hx,hy,nx,ny,dx,dy)
 
+if (mom==0) then
+
 call updateP(p,hx,hy,nx,ny,dx,dy)
+
+else 
+
+call updatePmom(u,v,p,hx,hy,nx,ny,dx,dy,dt)
+
+end if
 
 call updatefield(u,v,p,hx,hy,nx,ny,dx,dy,dt)
 
@@ -463,6 +472,100 @@ do i = 0,nx
   end do
 end do
 
+
+
+return
+end
+
+
+
+
+
+
+
+!--------------------------------------------------------------------------------------
+!--------------------------------------------------------------------------------------
+!Subroutine for momentum interpolation
+!--------------------------------------------------------------------------------------
+!--------------------------------------------------------------------------------------
+subroutine updatePmom(u,v,p,hx,hy,nx,ny,dx,dy,dt)
+implicit none
+
+common/PoissonIter/psit
+
+integer::nx,ny,i,j,q,psit,k
+real*8::dx,dy,dt,ta,tb,tc,tp1,tp2
+real*8,dimension(0:nx,0:ny)::u,v,p,hx,hy,ptemp1
+real*8,dimension(-2:nx+2,-2:ny+2)::pd
+
+dy = dx
+
+do i = 0,nx
+  do j = 0,ny
+    pd(i,j) = p(i,j)
+    ptemp1(i,j) = p(i,j)
+  end do
+end do
+
+do j = 0,ny
+  pd(-1,j) = pd(0,j)+(pd(0,j)-pd(1,j))
+  pd(-2,j) = pd(0,j)+2d0*(pd(0,j)-pd(1,j))
+  pd(nx+1,j) = pd(nx,j)-(pd(nx-1,j)-pd(nx,j))
+  pd(nx+2,j) = pd(nx,j)-2d0*(pd(nx-1,j)-pd(nx,j))  
+end do
+
+do i = 0,nx
+  pd(i,ny+1) = pd(i,ny)
+  pd(i,ny+2) = pd(i,ny)
+  pd(i,-1) = pd(i,0)
+  pd(i,-2) = pd(i,0)
+end do
+
+
+q = 0
+  
+do k = 1,psit  
+
+do i = 0,nx
+	do j = 1,ny-1
+		ta = 0.5d0*(u(i+1,j)-u(i-1,j)+v(i+1,j)-v(i-1,j))
+		tb = 0.5d0*(hx(i+1,j)-hy(i-1,j)+hy(i+1,j)-hy(i-1,j))
+        tc = -4d0*dx/dt*(ta+0.5d0*tb)
+        tp1= 2d0*(pd(i+2,j)+pd(i-2,j)+pd(i,j+2)+pd(i,j-2))
+        tp2= -4d0*(pd(i+1,j)+pd(i-1,j)+pd(i,j+1)+pd(i,j-1))
+        ptemp1(i,j) = -0.125d0*(tc+tp1+tp2)
+    end do
+
+    ptemp1(i,0) = ptemp1(i,1)
+    ptemp1(i,ny) = ptemp1(i,ny-1)
+end do
+
+
+call l1normcheck(ptemp1,pd,nx,ny,q)
+
+if (q.ne.0) then
+
+do j = 0,ny
+  do i = 0,nx
+    	p(i,j) = ptemp1(i,j)
+  end do
+end do
+
+print*,k
+
+exit
+
+end if
+
+do j = 0,ny
+  do i = 0,nx
+    	pd(i,j) = ptemp1(i,j)
+  end do
+end do
+
+
+
+end do
 
 
 return
