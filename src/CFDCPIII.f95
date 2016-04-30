@@ -8,7 +8,7 @@ program NS2D
 implicit none
 
 
-integer :: nx,ny,fostep,ns,i,j,outpar,k,psit,min
+integer :: nx,ny,fostep,ns,i,j,outpar,k,psit
 real*8 :: xl,yl,regl,ft,gm,nu,ucl,dy,dx,dt,delp,rho
 real*8 :: t1,t2,cflu,cflv,tol
 real*8,allocatable :: u(:,:),v(:,:),p(:,:),hx(:,:),hy(:,:)
@@ -32,11 +32,11 @@ read(15,*)yl		!Total Length in y direction
 read(15,*)ft		!Final Time
 read(15,*)fostep	!fostep;File output every this percent of total timesteps(Choose multiples of ten)
 read(15,*)tol		!Tolerance for Pressure Poisson Solver
-read(15,*)min		!Momentum interpolation?
+read(15,*)psit		!Poisson Iterations
 close(15)
 
-!Calculating U at centerline
-ucl = 200d0*nu/yl
+!Calculating U at centerline - Centimeters
+ucl = regl*nu/yl
 
 !Calculating grid discretizations
 dx = xl/dfloat(nx)
@@ -57,20 +57,13 @@ do i = 0,nx
   do j = 0,ny
     u(i,j) = 0
     v(i,j) = 0
-    p(i,j) = 0
   end do
 end do
 
-!Calculating pressure drop using Darcy-Weisbach relation
-!Note that P2 (right buondary) is kept at reference zero
-do j = 0,ny
-  p(nx,j) = 0
-end do
-
-delp = xl*64/(regl)*(ucl**2)/(2d0*yl)*rho
-
-do j = 0,ny
-  p(0,j) = delp
+do i = 0,nx
+  do j = 0,ny
+    p(i,j) = 100 + 0.016*dfloat(nx-i)/dfloat(nx)
+  end do
 end do
 
 outpar = ns*fostep/100
@@ -130,15 +123,7 @@ end if
 
 call updateH(u,v,hx,hy,nx,ny,dx,dy)
 
-if (min==0) then
-
 call updateP(p,hx,hy,nx,ny,dx,dy)
-
-else
-
-call updatePmin(u,v,p,hx,hy,nx,ny,dx,dy,dt)  
-
-end if
 
 call updatefield(u,v,p,hx,hy,nx,ny,dx,dy,dt)
 
@@ -285,10 +270,8 @@ common/PoissonIter/psit
 
 integer :: nx,ny,i,j,psit,k,q
 real*8::dy,dx,ta,tb
-real*8,dimension(0:nx,0:ny):: p,hx,hy,hxdx,hydy,ptemp1,hytemp,ptemp2
-real*8,dimension(-1:nx+1,0:ny)::hxtemp,pd
-
-psit = 500
+real*8,dimension(0:nx,0:ny):: p,hx,hy,hxdx,hydy,ptemp1,hytemp,ptemp2,pd
+real*8,dimension(-1:nx+1,0:ny)::hxtemp
 
 !Calculating divergence of H terms
 
@@ -310,8 +293,6 @@ end do
 do j = 0,ny
   hxtemp(-1,j) = hx(nx-1,j)
   hxtemp(nx+1,j) = hx(1,j)
-  pd(-1,j) = p(nx-1,j)
-  pd(nx+1,j)=p(1,j)
 end do
 
 
@@ -350,7 +331,7 @@ end do
 
 call l1normcheck(ptemp1,ptemp2,nx,ny,q)
 
-if (q.ne.1) then
+if (q.ne.0) then
 
 do j = 0,ny
   do i = 0,nx
@@ -422,9 +403,9 @@ common/density/rho
 
 real*8::dx,dy,dt,rho
 integer::nx,ny,i,j,k,outpar
-real*8,dimension(0:nx,0:ny)::u,v,p,hx,hy
+real*8,dimension(0:nx,0:ny)::u,v,p,hx,hy,ptemp
 real*8,dimension(0:nx,0:ny)::gradpx,gradpy
-real*8,dimension(-1:nx+1,0:ny)::ptemp
+
 
 !Defining dummys for pressure
 
@@ -441,21 +422,14 @@ do i=0,nx
   end do
 end do  
 
-!Periodic BCs for gradpx
-
-do j= 0,ny
-  ptemp(-1,j) = ptemp(nx-1,j)
-  ptemp(nx+1,j) = ptemp(1,j)
-end do
-
 !Calculation of pressure gradient
 do i = 1,nx-1
-  do j = 0,ny
+  do j = 1,ny-1
     gradpx(i,j) = (ptemp(i+1,j)-ptemp(i-1,j))/(2.*dx)
   end do
 end do
 
-do i = 0,nx
+do i = 1,nx-1
   	do j = 1,ny-1
     	gradpy(i,j) = (ptemp(i,j+1)-ptemp(i,j-1))/(2d0*dy)
 	end do
@@ -463,7 +437,7 @@ end do
 
   	do j = 0,ny
     	gradpx(0,j) = gradpx(1,j)
-    	gradpx(nx,j) = gradpx(nx-1,j)        
+    	gradpx(nx,j) = gradpx(nx-1,j)  !Calculated from Analytical Solution        
 	end do
 
   
@@ -484,44 +458,10 @@ end if
 !Updating the field
 do i = 0,nx
   do j = 1,ny-1
-	u(i,j) = u(i,j) + dt*(hx(i,j)-1*gradpx(i,j))
-  	v(i,j) = v(i,j) + dt*(hy(i,j)-1*gradpy(i,j))
+	u(i,j) = u(i,j) + dt*(hx(i,j)-gradpx(i,j))
+  	v(i,j) = v(i,j) + dt*(hy(i,j)-gradpy(i,j))
   end do
 end do
-
-
-
-return
-end
-
-
-
-!--------------------------------------------------------------------------------------
-!--------------------------------------------------------------------------------------
-!Subroutine for Pressure Updation using momentum interpolation
-!--------------------------------------------------------------------------------------
-!--------------------------------------------------------------------------------------
-subroutine updatePmin(u,v,p,hx,hy,nx,ny,dx,dy,dt)
-implicit none
-
-integer::nx,ny
-real*8::dx,dy,dt
-real*8,dimension(0:nx,0:ny)::u,v,p,hx,hy
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
