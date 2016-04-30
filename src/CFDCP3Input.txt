@@ -10,5 +10,5 @@
 45									!ft; 	Final time
 5									!fostep;File output percentage
 10d-4								!tol;	Tolerance for Pressure Poisson Solver
-10									!psit;	Poisson Iterations
-1									!mom; 	Momentum Interpolation
+100									!psit;	Poisson Iterations
+0									!mom; 	Momentum Interpolation
