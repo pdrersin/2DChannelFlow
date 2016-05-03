@@ -252,15 +252,15 @@ end do
 !Calculating second order derivatives
 do i = 0,nx
   	do j = 1,ny-1
-  		uddx(i,j) = (utemp(i+1,j)+utemp(i-1,j)-2.*utemp(i,j))/(2d0*dx)
-        vddx(i,j) = (vtemp(i+1,j)+vtemp(i-1,j)-2.*vtemp(i,j))/(2d0*dx)
+  		uddx(i,j) = (utemp(i+1,j)+utemp(i-1,j)-2.*utemp(i,j))/(dx**2)
+        vddx(i,j) = (vtemp(i+1,j)+vtemp(i-1,j)-2.*vtemp(i,j))/(dx**2)
 	end do
 end do
 
 do i = 0,nx
   	do j = 1,ny-1
-  		uddy(i,j) = (utemp(i,j+1)+utemp(i,j-1)-2d0*utemp(i,j))/(2d0*dy)
-        vddy(i,j) = (vtemp(i,j+1)+vtemp(i,j-1)-2d0*vtemp(i,j))/(2d0*dy)
+  		uddy(i,j) = (utemp(i,j+1)+utemp(i,j-1)-2d0*utemp(i,j))/(dy**2)
+        vddy(i,j) = (vtemp(i,j+1)+vtemp(i,j-1)-2d0*vtemp(i,j))/(dy**2)
 	end do
 end do
 
