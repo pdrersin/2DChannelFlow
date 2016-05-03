@@ -63,11 +63,13 @@ do i = 0,nx
 end do
 
 
-do i = 0,nx
+!do i = 0,nx
   do j = 0,ny
-    p(i,j) = 100. + 0.016*dfloat(nx-i)/dfloat(nx)
+    p(0,j) = 100.016
+    p(nx,j) = 100.    
+    !p(i,j) = 100. + 0.016*dfloat(nx-i)/dfloat(nx)
   end do
-end do
+!end do
 
 outpar = ns*fostep/100
 
@@ -133,11 +135,11 @@ call updateH(u,v,hx,hy,nx,ny,dx,dy)
 
 if (mom==0) then
 
-call updateP(p,hx,hy,nx,ny,dx,dy)
+call updateP(p,hx,hy,nx,ny,dx,dy,k)
 
 else 
 
-call updatePmom(u,v,p,hx,hy,nx,ny,dx,dy,dt)
+call fracP(u,v,p,nx,ny,dx,dy,dt,k)
 
 end if
 
@@ -155,7 +157,7 @@ write(20,"(a,i8,a,i8,a)")'Zone I = ',nx+1,',J=',ny+1,',F=POINT'
 write(20,"(a,i8)")'StrandID=0,SolutionTime=',k
   do j = 0,ny
     do i = 0,nx
-      write (20, '(1600F14.3,1600F14.3,1600F14.3,1600F14.3)',advance="no")dfloat(i)/dfloat(ny),&
+      write (20, '(1600F14.6,1600F14.6,1600F14.6,1600F14.6)',advance="no")dfloat(i)/dfloat(ny),&
       &dfloat(j)/dfloat(ny),u(i,j),v(i,j),p(i,j)
       write(20,*) ''
     end do
@@ -175,14 +177,14 @@ open(20,file="UprofileLinePlots.plt",position="append")
 write(20,"(a,i8,a)")'Zone I = ',ny+1,',F=POINT'
 write(20,"(a,i8)")'StrandID=0,SolutionTime=',k
     do j = 0,ny
-      write (20, '(1600F14.3,1600F14.3)',advance="no")u(nx/2,j),dfloat(j)/dfloat(ny)
+      write (20, '(1600F14.6,1600F14.6)',advance="no")u(nx/2,j),dfloat(j)/dfloat(ny)
       write(20,*) ''
     end do
 close(20)
 
 open(20,file="DivergenceCheck.plt",position="append")
     do j = 0,ny
-      write (20, '(1600F14.3,1600F14.3)',advance="no")dfloat(k),dsum
+      write (20, '(1600F14.6,1600F14.6)',advance="no")dfloat(k),dsum
       write(20,*) ''
     end do
 close(20)
@@ -288,17 +290,26 @@ end
 !Subroutine for Pressure Updation
 !--------------------------------------------------------------------------------------
 !--------------------------------------------------------------------------------------
-subroutine updateP(p,hx,hy,nx,ny,dx,dy)
+subroutine updateP(p,hx,hy,nx,ny,dx,dy,k)
 implicit none
 
 common/PoissonIter/psit
 
 integer :: nx,ny,i,j,psit,k,q
 real*8::dy,dx,ta,tb
-real*8,dimension(0:nx,0:ny):: p,hx,hy,hxdx,hydy,ptemp1,hytemp,ptemp2,pd
+real*8,dimension(0:nx,0:ny):: p,hx,hy,hxdx,hydy,ptemp1,hytemp,pd
 real*8,dimension(-1:nx+1,0:ny)::hxtemp
 
 !Calculating divergence of H terms
+
+if (k==0) then
+  psit = 15000
+else if (k==1) then
+  psit = 15000
+else 
+  psit = 1
+end if
+  
 
 
 do i = 0,nx
@@ -306,7 +317,6 @@ do i = 0,nx
     hxtemp(i,j) = hx(i,j)
     hytemp(i,j) = hy(i,j)
     ptemp1(i,j)	= p(i,j)
-    ptemp2(i,j)	= p(i,j)    
     pd(i,j)		= p(i,j)
     hxdx(i,j)=0.0
     hydy(i,j)=0.0    
@@ -314,6 +324,7 @@ do i = 0,nx
 end do
 
 !Adding Dummy terms in x direction for hxdx
+
 
 do j = 0,ny
   hxtemp(-1,j) = hx(nx-1,j)
@@ -329,9 +340,8 @@ do i = 0,nx
   end do
 end do    
 
-q = 0
-  
-!do k = 1,psit
+ 
+do q = 1,psit
 
 do i = 1,nx-1
   do j = 1,ny-1
@@ -354,33 +364,18 @@ do i = 1,nx-1
 	ptemp1(i,0) = ptemp1(i,1)  
 end do		  
 
-call l1normcheck(ptemp1,ptemp2,nx,ny,q)
-
-if (q.ne.0) then
-
 do j = 0,ny
   do i = 0,nx
-    	p(i,j) = ptemp1(i,j)
-  end do
-end do
-
-!print*,k
-
-!exit
-
-end if
-
-do j = 0,ny
-  do i = 0,nx
-    	ptemp2(i,j) = ptemp1(i,j)
+    	pd(i,j) = ptemp1(i,j)
+        p(i,j) = pd(i,j)        
   end do
 end do
 
 
+end do
 
 
 
-!end do
 
 return
 end
@@ -504,98 +499,70 @@ end
 !Subroutine for momentum interpolation
 !--------------------------------------------------------------------------------------
 !--------------------------------------------------------------------------------------
-subroutine updatePmom(u,v,p,hx,hy,nx,ny,dx,dy,dt)
+subroutine fracP(u,v,p,nx,ny,dx,dy,dt,k)
 implicit none
 
 common/PoissonIter/psit
+common/density/rho
 
-integer::nx,ny,i,j,q,psit,k
-real*8::dx,dy,dt,ta,tb,tc,tp1,tp2
-real*8,dimension(0:nx,0:ny)::u,v,p,hx,hy,ptemp1,ptemp2
-real*8,dimension(-2:nx+2,-2:ny+2)::pd
+integer::nx,ny,i,j,psit,k,q
+real*8::dx,dy,dt,ta,tb,tc,td,te,tf,rho
+real*8,dimension(0:nx,0:ny)::u,v,p
+real*8,dimension(0:nx,0:ny)::pd,pdup
+
+if (k==0) then
+  psit = 15000
+else if (k==1) then
+  psit = 15000
+else 
+  psit = 1
+end if
+
 
 dy = dx
 
 do i = 0,nx
   do j = 0,ny
-    pd(i,j) = p(i,j)
-    ptemp1(i,j) = p(i,j)
-    ptemp2(i,j) = p(i,j)
+    pd(i,j) = p(i,j)    
+    pdup(i,j) = p(i,j)
   end do
 end do
 
-q = 0
+do q = 0,psit
+        
+do j = 1,ny-1
+  	do i = 1,nx-1
+
   
-!do k = 1,psit
+  	ta = ((pd(i+1,j)+pd(i-1,j))*dy**2+(pd(i,j+1)+pd(i,j-1))*dx**2)/(2.*(dx**2 + dy**2))
+  	tb = -(rho*dx**2*dy**2)/(2*(dx**2+dy**2))
+    tc = (1./dt)*((u(i+1,j) - u(i-1,j))/(2.*dx)+(v(i,j+1) - v(i,j-1))/(2.*dy))
+    td = -(u(i+1,j)-u(i-1,j))/(2.*dx)*(u(i+1,j)-u(i-1,j))/(2*dx)
+  	te = -2*(u(i,j+1)-u(i,j-1))/(2*dy)*(v(i+1,j)-v(i-1,j))/(2*dx)
+  	tf = -(v(i,j+1)-v(i,j-1))/(2*dy)*(v(i,j+1)-v(i,j-1))/(2*dy)
 
-do j = 0,ny
-  pd(-1,j) = pd(0,j)+(pd(0,j)-pd(1,j))
-  pd(-2,j) = pd(0,j)+2d0*(pd(0,j)-pd(1,j))
-  pd(nx+1,j) = pd(nx,j)-(pd(nx-1,j)-pd(nx,j))
-  pd(nx+2,j) = pd(nx,j)-2d0*(pd(nx-1,j)-pd(nx,j))  
-end do
+	pdup(i,j) = ta + tb*(tc+td+te+tf)  
+	
+	pdup(i,ny) = pdup(i,ny-1)
+    pdup(i,0) = pdup(i,1)
 
-do i = 0,nx
-  pd(i,ny+1) = pd(i,ny)
-  pd(i,ny+2) = pd(i,ny)
-  pd(i,-1) = pd(i,0)
-  pd(i,-2) = pd(i,0)
-end do  
-
-do i = 1,nx-1
-	do j = 1,ny-1
-		ta = 0.5d0*(u(i+1,j)-u(i-1,j)+v(i,j+1)-v(i,j-1))
-		tb = 0.5d0*(hx(i+1,j)-hx(i-1,j)+hy(i,j+1)-hy(i,j-1))
-        tc = -4d0*dx/dt*(ta+0.5d0*tb*dt)
-        tp1= 2d0*(pd(i+2,j)+pd(i-2,j)+pd(i,j+2)+pd(i,j-2))
-        tp2= -4d0*(pd(i+1,j)+pd(i-1,j)+pd(i,j+1)+pd(i,j-1))
-        ptemp1(i,j) = -0.125d0*(tc+tp1+tp2)
     end do
-
-    ptemp1(i,0) = ptemp1(i,1)
-    ptemp1(i,ny) = ptemp1(i,ny-1)
 end do
-
-
-call l1normcheck(ptemp1,ptemp2,nx,ny,q)
-
-if (q.ne.0) then
 
 do j = 0,ny
   do i = 0,nx
-    	p(i,j) = ptemp1(i,j)
+        pd(i,j) = pdup(i,j)
   end do
 end do
 
-print*,k
-
-!exit  
-
-else if(k==psit) then
-
-do j = 0,ny
-  do i = 0,nx
-    	p(i,j) = ptemp1(i,j)
-  end do
-end do  
-
-print*,k
-
-!exit
-
-end if
-
-do j = 0,ny
-  do i = 0,nx
-    	ptemp2(i,j) = ptemp1(i,j)
-        pd(i,j) = ptemp1(i,j)
-  end do
 end do
 
 
-
-!end do
-
+do j = 0,ny
+  do i = 0,nx
+        p(i,j) = pdup(i,j)
+  end do
+end do
 
 return
 end
