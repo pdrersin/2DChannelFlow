@@ -65,7 +65,7 @@ end do
 
 !do i = 0,nx
   do j = 0,ny
-    p(0,j) = 100.016
+    p(0,j) = 100.16
     p(nx,j) = 100.    
     !p(i,j) = 100. + 0.016*dfloat(nx-i)/dfloat(nx)
   end do
@@ -184,7 +184,7 @@ close(20)
 
 open(20,file="DivergenceCheck.plt",position="append")
     do j = 0,ny
-      write (20, '(1600F14.6,1600F14.6)',advance="no")dfloat(k),dsum
+      write (20, '(1600F20.10,1600F20.10)',advance="no")dfloat(k),dsum
       write(20,*) ''
     end do
 close(20)
@@ -348,15 +348,15 @@ do i = 1,nx-1
     if (j>1.and.j<ny-1) then
       ta = pd(i+1,j)+pd(i-1,j)+pd(i,j+1)+p(i,j-1)
 	  tb = hxdx(i,j) + hydy(i,j)
-      ptemp1(i,j) = ta/4-tb/4*(2d0)*(dx**2)
+      ptemp1(i,j) = ta/4-tb/4*(1d0)*(dx**2)
 	else if (j==1) then
       ta = pd(i+1,j)+pd(i-1,j)+pd(i,j+1)
       tb = hxdx(i,j) + hydy(i,j)
-      ptemp1(i,j) = ta/3-tb/3*(2d0)*(dx**2)
+      ptemp1(i,j) = ta/3-tb/3*(1d0)*(dx**2)
     else if (j==ny-1) then
       ta = pd(i+1,j)+pd(i-1,j)+pd(i,j-1)
       tb = hxdx(i,j) + hydy(i,j)
-      ptemp1(i,j) = ta/3-tb/3*(2d0)*(dx**2)
+      ptemp1(i,j) = ta/3-tb/3*(1d0)*(dx**2)
 	end if
   end do
 
@@ -511,9 +511,9 @@ real*8,dimension(0:nx,0:ny)::u,v,p
 real*8,dimension(0:nx,0:ny)::pd,pdup
 
 if (k==0) then
-  psit = 15000
+  psit = 20000
 else if (k==1) then
-  psit = 15000
+  psit = 20000
 else 
   psit = 1
 end if
